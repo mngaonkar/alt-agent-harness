@@ -1,0 +1,17 @@
+{
+  "provider": "xai",
+  "base_url": "https://api.x.ai/v1",
+  "api_key": "",
+  "model": "grok-4.6",
+  "temperature": 0.2,
+  "max_tokens": 4096,
+
+  "tavily_api_key": "",
+  "tavily_max_results": 5,
+  "tavily_search_depth": "basic",
+
+  "request_timeout": 120,
+  "max_tool_iterations": 50,
+  "history_limit": 40,
+  "system_prompt": ""
+}
