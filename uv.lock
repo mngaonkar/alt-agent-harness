@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "agent-harness"
+name = "alt-agent-harness"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

@@ -209,7 +209,7 @@ class Composer(_GradientBorder, Input):
 
 
 class ChatApp(App):
-    TITLE = "agent-harness"
+    TITLE = "alt-agent-harness"
     CSS = """
     Screen {
         layout: vertical;

@@ -1,4 +1,4 @@
-"""Thin shim so `python src/main.py` still works. Prefer `uv run agent-harness`."""
+"""Thin shim so `python src/main.py` still works. Prefer `uv run alt-agent-harness`."""
 
 from agent.cli import main
 

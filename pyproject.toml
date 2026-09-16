@@ -1,5 +1,5 @@
 [project]
-name = "agent-harness"
+name = "alt-agent-harness"
 version = "0.1.0"
 description = "A simple skill-based agent harness"
 readme = "README.md"
@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-agent-harness = "agent.cli:main"
+alt-agent-harness = "agent.cli:main"
 
 [build-system]
 requires = ["hatchling"]

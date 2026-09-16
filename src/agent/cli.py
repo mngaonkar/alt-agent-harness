@@ -9,14 +9,14 @@ from agent.session import Session, Turn
 
 
 BANNER = r"""
-  ___                   _     _  _                           
- / _ \                 | |   | || |                          
-/ /_\ \ __ _  ___ _ __ | |_  | || | __ _ _ __ _ __   ___  ___ ___
-|  _  |/ _` |/ _ \ '_ \| __| | __ |/ _` | '__| '_ \ / _ \/ __/ __|
-| | | | (_| |  __/ | | | |_  | || | (_| | |  | | | |  __/\__ \__ \
-\_| |_/\__, |\___|_| |_|\__|  \_| |_/\__,_|_|  |_| |_|\___||___/___/
-        __/ |                                                
-       |___/   skill-based agent harness
+        _ _     ___                   _     _  _
+   __ _| | |_  / _ \                 | |   | || |
+  / _` | | __|/ /_\ \ __ _  ___ _ __ | |_  | || | __ _ _ __ _ __   ___  ___ ___
+ | (_| | | |_|  _  |/ _` |/ _ \ '_ \| __| | __ |/ _` | '__| '_ \ / _ \/ __/ __|
+  \__,_|_|\__| | | | (_| |  __/ | | | |_  | || | (_| | |  | | | |  __/\__ \__ \
+             \_| |_/\__, |\___|_| |_|\__|  \_| |_/\__,_|_|  |_| |_|\___||___/___/
+                     __/ |
+                    |___/   skill-based alt-agent-harness
 """
 
 
@@ -44,7 +44,7 @@ def run_once(session: Session, prompt: str):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Skill-based agent harness")
+    parser = argparse.ArgumentParser(description="Skill-based alt-agent-harness")
     parser.add_argument(
         "-c", "--command",
         help="Run one prompt and exit (non-interactive).",

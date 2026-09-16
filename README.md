@@ -1,4 +1,4 @@
-# agent-harness
+# alt-agent-harness
 
 A small skill-based agent that runs on your laptop. Same shape as
 [esp32s3-agent](https://github.com/mngaonkar/esp32s3-ai-agent): an OpenAI-compatible
@@ -20,7 +20,7 @@ Python 3.10+ and [uv](https://docs.astral.sh/uv/).
 uv sync
 export XAI_API_KEY=...                 # https://console.x.ai
 # or: export OPENROUTER_API_KEY=...    # https://openrouter.ai/settings/keys
-uv run agent-harness
+uv run alt-agent-harness
 ```
 
 Keys can also live in a gitignored `.env` next to `config.json`:
@@ -29,6 +29,7 @@ Keys can also live in a gitignored `.env` next to `config.json`:
 OPENROUTER_API_KEY=sk-or-v1-...
 # XAI_API_KEY=...
 # TAVILY_API_KEY=...
+uv run alt-agent-harness
 ```
 
 Shell exports still win over `.env`. On first run, if there is no key in the
@@ -38,15 +39,15 @@ and writes `config.json` (gitignored).
 Non-interactive:
 
 ```bash
-uv run agent-harness -c "how's this machine doing?"
+uv run alt-agent-harness -c "how's this machine doing?"
 ```
 
 The default chat UI is a Textual TUI. Use `--repl` (or `--interface repl`) for
 a plain stdin prompt — pipes, dumb terminals, or logging.
 
 ```bash
-uv run agent-harness --repl
-uv run agent-harness --workspace /path/to/other/checkout
+uv run alt-agent-harness --repl
+uv run alt-agent-harness --workspace /path/to/other/checkout
 ```
 
 `--workspace` is the project root (skills, config, `/tmp`). It defaults to the

@@ -24,7 +24,7 @@ class Client:
             # Optional but recommended by OpenRouter for app rankings.
             headers = {
                 "HTTP-Referer": "https://openrouter.ai",
-                "X-Title": "agent-harness",
+                "X-Title": "alt-agent-harness",
             }
         self._client = OpenAI(
             api_key=self.api_key,

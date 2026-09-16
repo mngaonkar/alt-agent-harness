@@ -482,7 +482,7 @@ class ToolRegistry:
         limit = int(a.get("max_bytes", 4000))
         req = urllib.request.Request(
             url,
-            headers={"User-Agent": "agent-harness/0.1"},
+            headers={"User-Agent": "alt-agent-harness/0.1"},
             method="GET",
         )
         try:
