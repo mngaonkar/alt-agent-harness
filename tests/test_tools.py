@@ -157,3 +157,47 @@ def test_web_search_invoke_alias(tmp_path):
     reg = _registry(tmp_path, tavily_key="tvly-test")
     out = reg.invoke("web_search", {"query": ""})
     assert "query is empty" in out or "Search failed" in out
+
+
+def test_run_bash_in_schemas_and_catalog(tmp_path):
+    reg = _registry(tmp_path)
+    names = [s["function"]["name"] for s in reg.schemas()]
+    assert "run_bash" in names
+    catalog = reg.catalog()
+    assert "- run_bash:" in catalog
+
+
+def test_run_bash_success(tmp_path):
+    reg = _registry(tmp_path)
+    out = reg.invoke("run_bash", {"command": "echo 'hello from bash'"})
+    assert "hello from bash" in out
+    assert "[exited with status" not in out
+
+
+def test_run_bash_exit_code_and_stderr(tmp_path):
+    reg = _registry(tmp_path)
+    out = reg.invoke("run_bash", {"command": "echo 'error msg' >&2 && exit 5"})
+    assert "STDERR:" in out
+    assert "error msg" in out
+    assert "[exited with status 5]" in out
+
+
+def test_run_bash_cwd(tmp_path):
+    reg = _registry(tmp_path)
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    out = reg.invoke("run_bash", {"command": "pwd", "cwd": "/sub"})
+    assert str(sub) in out
+
+
+def test_run_bash_requires_command(tmp_path):
+    reg = _registry(tmp_path)
+    out = reg.invoke("run_bash", {})
+    assert "Error: command is required" in out
+
+
+def test_run_bash_invalid_cwd(tmp_path):
+    reg = _registry(tmp_path)
+    out = reg.invoke("run_bash", {"command": "ls", "cwd": "/nonexistent_xyz"})
+    assert "Error: directory does not exist" in out
+

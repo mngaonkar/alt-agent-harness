@@ -92,7 +92,7 @@ the loop.
 **Skills** are how to do a job in *this* workspace.
 
 **Tools** are raw capability — `load_skill`, `list_skills`, `list_dir`, `read_file`,
-`write_file`, `delete_file`, `run_script`, `host_status`, `http_get`, and
+`write_file`, `delete_file`, `run_script`, `run_bash`, `host_status`, `http_get`, and
 `tavily_search` when a Tavily key is set.
 
 **The model** decides what to do next.

@@ -9,6 +9,7 @@ import json
 import os
 import platform
 import shutil
+import subprocess
 import sys
 import time
 import urllib.error
@@ -178,6 +179,21 @@ class ToolRegistry:
             },
             ["path"],
             self._run_script,
+        )
+
+        self.add(
+            "run_bash",
+            "Execute a bash or shell command on the host. Captures and returns "
+            "standard output, standard error, and exit status. Pagers are "
+            "disabled (PAGER=cat). Useful for git, builds, tests, system "
+            "inspection, and CLI tools.",
+            {
+                "command": {"type": "string", "description": "The command line to run."},
+                "cwd": {"type": "string", "description": "Directory to run in (defaults to workspace root)."},
+                "timeout": {"type": "integer", "description": "Maximum seconds to wait (default 30, max 300)."},
+            },
+            ["command"],
+            self._run_bash,
         )
 
         # Deliberately not named "sysinfo": a native tool sharing a skill's
@@ -520,3 +536,82 @@ class ToolRegistry:
         if len(raw) > limit:
             body += "\n...[truncated]"
         return "HTTP %d\n%s" % (status, body)
+
+    def _run_bash(self, a):
+        command = (a.get("command") or "").strip()
+        if not command:
+            return "Error: command is required"
+
+        timeout_raw = a.get("timeout", 30)
+        try:
+            timeout = min(max(int(timeout_raw), 1), 300)
+        except (ValueError, TypeError):
+            timeout = 30
+
+        cwd_arg = a.get("cwd")
+        if not cwd_arg:
+            real_cwd = self.workspace.root
+        else:
+            try:
+                if str(cwd_arg).startswith("/"):
+                    try:
+                        real_cwd = self.workspace.to_real(cwd_arg)
+                    except ValueError:
+                        real_cwd = Path(cwd_arg).resolve()
+                else:
+                    real_cwd = (self.workspace.root / cwd_arg).resolve()
+            except Exception as exc:
+                return "Error: invalid cwd %r: %s" % (cwd_arg, exc)
+
+        if not real_cwd.is_dir():
+            return "Error: directory does not exist: %s" % cwd_arg
+
+        env = dict(os.environ)
+        env["PAGER"] = "cat"
+        env["TERM"] = "dumb"
+        env["CI"] = "1"
+
+        shell_path = "/bin/bash" if os.path.exists("/bin/bash") else "/bin/sh"
+
+        try:
+            proc = subprocess.run(
+                command,
+                shell=True,
+                executable=shell_path,
+                cwd=str(real_cwd),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                env=env,
+            )
+        except subprocess.TimeoutExpired as exc:
+            msg = "Error: command timed out after %d seconds" % timeout
+            parts = [msg]
+            if exc.stdout:
+                parts.append("STDOUT:\n" + str(exc.stdout).strip())
+            if exc.stderr:
+                parts.append("STDERR:\n" + str(exc.stderr).strip())
+            return "\n".join(parts)
+        except Exception as exc:
+            return "Error: failed to execute command: %s" % exc
+
+        stdout = (proc.stdout or "").strip()
+        stderr = (proc.stderr or "").strip()
+
+        max_bytes = 10000
+        if len(stdout) > max_bytes:
+            stdout = stdout[:max_bytes] + "\n...[truncated]"
+        if len(stderr) > max_bytes:
+            stderr = stderr[:max_bytes] + "\n...[truncated]"
+
+        parts = []
+        if stdout:
+            parts.append(stdout)
+        if stderr:
+            parts.append("STDERR:\n" + stderr)
+        if proc.returncode != 0:
+            parts.append("[exited with status %d]" % proc.returncode)
+        if not parts:
+            parts.append("(command completed with no output, exit code 0)")
+
+        return "\n".join(parts)
