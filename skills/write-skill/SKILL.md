@@ -94,7 +94,7 @@ No `import host_status`. Prefer `tool(...)`.
 
 - Virtual paths start with `/`. The workspace root is `/`.
 - Writes are allowed only under `/skills/` and `/tmp/`.
-- Diagnostics: `host_status`. Search: `web_search` (if configured).
+- Diagnostics: `host_status`. Search: `tavily_search` (if configured).
 - Only real tools. If something is impossible, say so after checking -- that
   is a hard stop, not a first-error bail.
 

@@ -16,12 +16,16 @@ Do **not** search for things this host already knows about itself. OS, disk,
 RSS, uptime and the workspace come from the `sysinfo` skill. Searching for
 those returns worse information than `host_status`.
 
-If `web_search` is not in the tool list, Tavily is not configured. Say so and
+If `tavily_search` is not in the tool list, Tavily is not configured. Say so and
 offer `http_get` only when the user already has a URL.
+
+The tool is named `tavily_search`. Do not call `web_search` — some providers
+treat that name as a built-in server tool, drop the call, and return an empty
+reply.
 
 ## Running a search
 
-`web_search` takes a `query` and optionally `max_results` (1-10, default 5),
+`tavily_search` takes a `query` and optionally `max_results` (1-10, default 5),
 `topic`, and `days`.
 
 Write queries as keywords, not as the user's sentence. "grok-4.6 context window"
@@ -30,7 +34,7 @@ beats "can you tell me how big grok 4.6's context is?".
 For recent events pass `topic: "news"`, optionally with `days` to bound the
 window:
 
-    web_search(query="xAI grok model release", topic="news", days=30)
+    tavily_search(query="xAI grok model release", topic="news", days=30)
 
 Prefer one well-chosen query over several narrow ones, and raise `max_results`
 rather than searching again with a slightly different phrasing.

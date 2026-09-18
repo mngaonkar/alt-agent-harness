@@ -193,14 +193,18 @@ class ToolRegistry:
         )
 
         if self.tavily.enabled:
+            # Named tavily_search, not web_search: grok-4.6 treats a function
+            # called web_search as xAI's built-in server tool, swallows the
+            # call, and returns an empty reply (finish_reason=stop).
             self.add(
-                "web_search",
+                "tavily_search",
                 "Search the live web via Tavily and get back a short synthesised "
                 "answer plus source snippets. Use for anything you cannot know "
                 "from this host itself: current events, prices, weather, "
                 "documentation, or any fact that may have changed since "
                 "training. Prefer this over http_get, which returns raw "
-                "unparsed HTML.",
+                "unparsed HTML. The tool name is tavily_search; do not call "
+                "web_search.",
                 {
                     "query": {"type": "string", "description": "The search query."},
                     "max_results": {"type": "integer", "description": "Sources to return, 1-10 (default 5)."},
@@ -208,8 +212,9 @@ class ToolRegistry:
                     "days": {"type": "integer", "description": "With topic='news', how many days back to look."},
                 },
                 ["query"],
-                self._web_search,
+                self._tavily_search,
             )
+            self._handlers["web_search"] = self._tavily_search
 
         self.add(
             "http_get",
@@ -463,7 +468,7 @@ class ToolRegistry:
             info["rss_unit"] = rss_unit
         return info
 
-    def _web_search(self, a):
+    def _tavily_search(self, a):
         try:
             data = self.tavily.search(
                 a.get("query", ""),

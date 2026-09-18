@@ -93,7 +93,7 @@ the loop.
 
 **Tools** are raw capability — `load_skill`, `list_skills`, `list_dir`, `read_file`,
 `write_file`, `delete_file`, `run_script`, `host_status`, `http_get`, and
-`web_search` when a Tavily key is set.
+`tavily_search` when a Tavily key is set.
 
 **The model** decides what to do next.
 
@@ -139,8 +139,10 @@ under `/skills/`, a bundled file without a `SKILL.md`, and a manifest whose
 | `websearch` | Live web lookup via Tavily — when to search, how to phrase queries. |
 | `write-skill` | How to author new skills so the harness can extend itself. |
 
-`web_search` is registered only when `tavily_api_key` is set, so the model is
-never offered a tool that is guaranteed to fail.
+`tavily_search` is registered only when `tavily_api_key` is set, so the model is
+never offered a tool that is guaranteed to fail. The name is not `web_search`
+because grok-4.6 treats that as xAI's built-in server tool and returns an empty
+reply instead of a function call.
 
 Scripts reuse existing capability through `tool(name, args)`:
 
@@ -162,12 +164,13 @@ Copy `config.example.json` to `config.json`, or let first-run setup write it.
 | `api_key` | *(empty)* | Or `XAI_API_KEY` / `OPENROUTER_API_KEY` (env or `.env`) |
 | `model` | `grok-4.6` | OpenRouter: `x-ai/grok-4.6` (or any OpenRouter id) |
 | `temperature` | `0.2` | Dropped automatically if the model rejects it |
-| `max_tokens` | `4096` | Switches to `max_completion_tokens` if the API requires it |
+| `max_tokens` | `16384` | Includes reasoning tokens. Switches to `max_completion_tokens` if the API requires it |
+| `reasoning_effort` | `low` | `low` / `medium` / `high` / `xhigh`. grok-4.6 defaults to high if omitted, which can eat the token budget and return an empty reply after `load_skill` |
 | `request_timeout` | `120` | Seconds per LLM request |
 | `max_tool_iterations` | `50` | Skill authoring needs the room |
 | `history_limit` | `40` | Oldest turns drop; tool-call pairs are never split |
 | `system_prompt` | *(empty)* | Appended to the built-in prompt |
-| `tavily_api_key` | *(empty)* | Enables `web_search` (or `TAVILY_API_KEY`) |
+| `tavily_api_key` | *(empty)* | Enables `tavily_search` (or `TAVILY_API_KEY`) |
 | `tavily_max_results` | `5` | Sources per search |
 | `tavily_search_depth` | `basic` | Passed through to Tavily |
 

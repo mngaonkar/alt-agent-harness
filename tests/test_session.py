@@ -56,6 +56,7 @@ def test_slash_commands(tmp_path):
     assert tools.kind == "status"
     assert "- load_skill:" in tools.text
     assert "- host_status:" in tools.text
+    assert "tavily_search" not in tools.text
     assert "web_search" not in tools.text
     info = session.submit("/info")
     assert "python" in info.text

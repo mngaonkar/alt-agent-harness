@@ -14,6 +14,8 @@ def test_load_defaults_and_file_override(tmp_path, monkeypatch):
     assert cfg["model"] == "grok-4.6"
     assert cfg["base_url"] == "https://api.x.ai/v1"
     assert cfg["api_key"] == ""
+    assert cfg["max_tokens"] == 16384
+    assert cfg["reasoning_effort"] == "low"
 
     path = tmp_path / "config.json"
     save({"model": "grok-4.5", "api_key": "file-key", "base_url": "https://api.x.ai/v1"}, path)

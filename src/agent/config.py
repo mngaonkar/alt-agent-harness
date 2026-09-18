@@ -30,8 +30,12 @@ _DEFAULTS = {
     "api_key": "",
     "model": XAI_MODEL,
     "temperature": 0.2,
-    "max_tokens": 4096,
-    # Tavily web search. Leave empty to omit the web_search tool.
+    "max_tokens": 16384,
+    # grok-4.6 defaults to high reasoning, which burns max_tokens and can
+    # return an empty reply after load_skill. low is what xAI recommends
+    # for tool-calling agents.
+    "reasoning_effort": "low",
+    # Tavily web search. Leave empty to omit the tavily_search tool.
     "tavily_api_key": "",
     "tavily_max_results": 5,
     "tavily_search_depth": "basic",

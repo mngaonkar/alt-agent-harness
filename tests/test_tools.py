@@ -132,17 +132,28 @@ def test_catalog_lists_name_and_description(tmp_path):
     assert "- load_skill:" in catalog
     assert "Load the full instructions" in catalog
     assert "web_search" not in catalog
+    assert "tavily_search" not in catalog
     with_search = _registry(tmp_path, tavily_key="tvly-test").catalog()
-    assert "- web_search:" in with_search
+    assert "- tavily_search:" in with_search
+    assert "- web_search:" not in with_search
 
 
-def test_web_search_omitted_without_key(tmp_path):
+def test_tavily_search_omitted_without_key(tmp_path):
     reg = _registry(tmp_path)
     names = [s["function"]["name"] for s in reg.schemas()]
+    assert "tavily_search" not in names
     assert "web_search" not in names
 
 
-def test_web_search_present_with_key(tmp_path):
+def test_tavily_search_present_with_key(tmp_path):
     reg = _registry(tmp_path, tavily_key="tvly-test")
     names = [s["function"]["name"] for s in reg.schemas()]
-    assert "web_search" in names
+    assert "tavily_search" in names
+    assert "web_search" not in names
+
+
+def test_web_search_invoke_alias(tmp_path):
+    """Scripts may still call tool('web_search', ...); it is not in schemas."""
+    reg = _registry(tmp_path, tavily_key="tvly-test")
+    out = reg.invoke("web_search", {"query": ""})
+    assert "query is empty" in out or "Search failed" in out

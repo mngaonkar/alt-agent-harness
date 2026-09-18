@@ -98,26 +98,67 @@ class Agent:
         messages.extend(self.history)
 
         max_iters = self.cfg.get("max_tool_iterations", 50)
+        empty_retries = 0
         for _round_i in range(max_iters):
             try:
-                message = self.client.chat(messages, tools=self.registry.schemas())
+                raw = self.client.chat(messages, tools=self.registry.schemas())
             except LLMError as exc:
                 err = "LLM error: %s" % exc
                 self._emit("error", err)
                 return err
 
+            message = dict(raw)
+            finish_reason = message.pop("finish_reason", None) or ""
             tool_calls = message.get("tool_calls") or []
             content = message.get("content") or ""
+            has_text = bool(content.strip()) if isinstance(content, str) else bool(content)
 
-            assistant_msg = {"role": "assistant", "content": content}
+            if not tool_calls and not has_text:
+                if finish_reason == "length":
+                    err = (
+                        "Model hit the output token limit before producing a "
+                        "reply (finish_reason=length). Reasoning tokens count "
+                        "against max_tokens; raise max_tokens or set "
+                        "reasoning_effort to 'low'."
+                    )
+                    self._emit("error", err)
+                    self.history.append({"role": "assistant", "content": err})
+                    return err
+                if empty_retries < 1:
+                    empty_retries += 1
+                    self._emit("status", "empty model reply; retrying")
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "Your last message was empty. Continue the task: "
+                            "call the next required tool, or answer the user. "
+                            "Do not return an empty message."
+                        ),
+                    })
+                    continue
+                err = (
+                    "Model returned an empty reply (finish_reason=%s)."
+                    % (finish_reason or "unknown")
+                )
+                self._emit("error", err)
+                self.history.append({"role": "assistant", "content": err})
+                return err
+
+            assistant_msg = {
+                "role": "assistant",
+                "content": content if has_text else (None if tool_calls else content),
+            }
             if tool_calls:
                 assistant_msg["tool_calls"] = tool_calls
+            for key in ("reasoning", "reasoning_content", "reasoning_details"):
+                if message.get(key):
+                    assistant_msg[key] = message[key]
             messages.append(assistant_msg)
             self.history.append(assistant_msg)
 
             if not tool_calls:
                 self._trim()
-                return content or "(no reply)"
+                return content
 
             for call in tool_calls:
                 fn = call.get("function", {})

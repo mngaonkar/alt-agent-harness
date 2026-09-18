@@ -79,6 +79,9 @@ def test_bundled_repo_skills_index():
     rendered = registry.render("sysinfo")
     assert "host_status" in rendered
     assert "/skills/sysinfo/scripts/rss_watch.py" in rendered
+    search = registry.render("websearch")
+    assert "tavily_search" in search
+    assert "Tavily" in search
 
 
 def test_render_includes_body_and_bundled_files(tmp_path):
