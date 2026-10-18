@@ -9,17 +9,58 @@ XAI_URL = "https://api.x.ai/v1"
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 XAI_MODEL = "grok-4.6"
 OPENROUTER_MODEL = "x-ai/grok-4.6"
+OPENAI_URL = "https://api.openai.com/v1"
+OPENAI_MODEL = "gpt-4o"
 
 PROVIDERS = {
     "xai": {
+        "name": "xAI (XAPI / Grok)",
         "base_url": XAI_URL,
         "env": "XAI_API_KEY",
         "model": XAI_MODEL,
+        "models": [
+            "grok-4.6",
+            "grok-2-latest",
+            "grok-beta",
+        ],
     },
     "openrouter": {
+        "name": "OpenRouter",
         "base_url": OPENROUTER_URL,
         "env": "OPENROUTER_API_KEY",
         "model": OPENROUTER_MODEL,
+        "models": [
+            "x-ai/grok-4.6",
+            "anthropic/claude-3.7-sonnet",
+            "meta-llama/llama-3.3-70b-instruct",
+            "google/gemini-2.0-flash-001",
+            "deepseek/deepseek-r1",
+            "openai/gpt-4o",
+            "openai/gpt-4o-mini",
+        ],
+    },
+    "openai": {
+        "name": "OpenAI",
+        "base_url": OPENAI_URL,
+        "env": "OPENAI_API_KEY",
+        "model": OPENAI_MODEL,
+        "models": [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "o3-mini",
+            "o1",
+        ],
+    },
+    "custom": {
+        "name": "Custom Endpoint (Ollama, vLLM, etc.)",
+        "base_url": "http://localhost:11434/v1",
+        "env": "CUSTOM_API_KEY",
+        "model": "llama3.2",
+        "models": [
+            "llama3.2",
+            "mistral",
+            "qwen2.5",
+        ],
     },
 }
 
@@ -112,9 +153,12 @@ def infer_provider(cfg):
         return explicit
     xai_key = os.environ.get("XAI_API_KEY", "").strip()
     or_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
     file_key = (cfg.get("api_key") or "").strip()
     if or_key and not xai_key and not file_key:
         return "openrouter"
+    if openai_key and not xai_key and not or_key and not file_key:
+        return "openai"
     return "xai"
 
 
@@ -122,22 +166,23 @@ def apply_provider(cfg):
     """Fill provider, api_key, base_url, and model from env / presets.
 
     Mutates and returns cfg. A custom base_url or model is left alone unless
-    it is still the other provider's default (so `export OPENROUTER_API_KEY`
+    it is still another provider's default (so `export OPENROUTER_API_KEY`
     is enough to switch).
     """
     provider = infer_provider(cfg)
     cfg["provider"] = provider
     preset = PROVIDERS[provider]
-    other = PROVIDERS["openrouter" if provider == "xai" else "xai"]
+    other_urls = {p["base_url"] for name, p in PROVIDERS.items() if name != provider}
+    other_models = {p["model"] for name, p in PROVIDERS.items() if name != provider}
 
     if not (cfg.get("api_key") or "").strip():
         env_key = os.environ.get(preset["env"], "").strip()
         if env_key:
             cfg["api_key"] = env_key
 
-    if not cfg.get("base_url") or cfg.get("base_url") == other["base_url"]:
+    if not cfg.get("base_url") or cfg.get("base_url") in other_urls:
         cfg["base_url"] = preset["base_url"]
-    if not cfg.get("model") or cfg.get("model") == other["model"]:
+    if not cfg.get("model") or cfg.get("model") in other_models:
         cfg["model"] = preset["model"]
     if not (cfg.get("tavily_api_key") or "").strip():
         tavily = os.environ.get("TAVILY_API_KEY", "").strip()

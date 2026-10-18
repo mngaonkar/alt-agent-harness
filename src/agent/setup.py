@@ -22,6 +22,8 @@ default shown in [brackets].
 
 
 def needed(cfg):
+    if cfg.get("provider") == "custom" and cfg.get("base_url"):
+        return False
     return not cfg.get("api_key")
 
 
@@ -54,31 +56,36 @@ class SetupAborted(Exception):
 def _from_env(cfg, path):
     xai_key = os.environ.get("XAI_API_KEY", "").strip()
     or_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if xai_key and not or_key:
-        cfg["provider"] = "xai"
-        cfg["api_key"] = xai_key
-        config.apply_provider(cfg)
-        print("[setup] using XAI_API_KEY from the environment")
-        config.save(cfg, path)
-        return cfg
-    if or_key and not xai_key:
-        cfg["provider"] = "openrouter"
-        cfg["api_key"] = or_key
-        config.apply_provider(cfg)
-        print("[setup] using OPENROUTER_API_KEY from the environment")
-        config.save(cfg, path)
-        return cfg
-    if xai_key and or_key:
-        # Both set: honour an explicit provider, otherwise SpaceXAI.
-        provider = (cfg.get("provider") or "xai").strip().lower()
-        if provider not in config.PROVIDERS:
-            provider = "xai"
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+
+    active_keys = {
+        "xai": xai_key,
+        "openrouter": or_key,
+        "openai": openai_key,
+    }
+    present = {p: k for p, k in active_keys.items() if k}
+
+    if len(present) == 1:
+        provider, key = next(iter(present.items()))
         cfg["provider"] = provider
-        cfg["api_key"] = or_key if provider == "openrouter" else xai_key
+        cfg["api_key"] = key
         config.apply_provider(cfg)
         print("[setup] using %s from the environment" % config.PROVIDERS[provider]["env"])
         config.save(cfg, path)
         return cfg
+
+    if len(present) > 1:
+        # Multiple set: honour explicit provider, otherwise SpaceXAI
+        provider = (cfg.get("provider") or "xai").strip().lower()
+        if provider not in present:
+            provider = "xai" if "xai" in present else next(iter(present))
+        cfg["provider"] = provider
+        cfg["api_key"] = present[provider]
+        config.apply_provider(cfg)
+        print("[setup] using %s from the environment" % config.PROVIDERS[provider]["env"])
+        config.save(cfg, path)
+        return cfg
+
     return None
 
 
@@ -89,7 +96,7 @@ def run(cfg, path):
         return from_env
 
     print(BANNER)
-    print("Providers: xai (SpaceXAI) or openrouter\n")
+    print("Providers: xai, openrouter, openai, or custom\n")
     provider = _ask("Provider", "xai").strip().lower()
     if provider not in config.PROVIDERS:
         print("  ...unknown provider; using xai")
@@ -101,6 +108,13 @@ def run(cfg, path):
         print("Create a key at https://openrouter.ai/settings/keys\n")
         cfg["api_key"] = _ask("OpenRouter API key (OPENROUTER_API_KEY)",
                               required=True, secret=True)
+    elif provider == "openai":
+        print("Create a key at https://platform.openai.com/api-keys\n")
+        cfg["api_key"] = _ask("OpenAI API key (OPENAI_API_KEY)",
+                              required=True, secret=True)
+    elif provider == "custom":
+        cfg["base_url"] = _ask("Endpoint Base URL", preset["base_url"], required=True)
+        cfg["api_key"] = _ask("API key (optional for local endpoints)", secret=True)
     else:
         print("Create a key at https://console.x.ai\n")
         cfg["api_key"] = _ask("SpaceXAI API key (XAI_API_KEY)",

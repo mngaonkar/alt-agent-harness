@@ -231,6 +231,7 @@ class ChatApp(App):
     BINDINGS = [
         Binding("ctrl+c", "quit", "Quit", show=True, priority=True),
         Binding("ctrl+d", "quit", "Quit", show=False, priority=True),
+        Binding("ctrl+o", "open_config", "Config", show=True),
         Binding("ctrl+l", "clear_log", "Clear", show=True),
     ]
 
@@ -244,7 +245,7 @@ class ChatApp(App):
         yield Header(show_clock=True)
         yield ChatLog(id="log", wrap=True, markup=True, highlight=False)
         yield Composer(
-            placeholder="Message  ·  /help  /reset  /skills  /tools  /quit",
+            placeholder="Message  ·  /help  /config  /reset  /skills  /tools  /quit",
             id="composer",
         )
         yield Footer()
@@ -258,6 +259,24 @@ class ChatApp(App):
 
     def action_clear_log(self) -> None:
         self.query_one("#log", ChatLog).clear()
+
+    def action_open_config(self) -> None:
+        from agent import config
+        from interfaces.config_tui import ConfigModal
+
+        cfg_path = config.default_path(self.session.workspace)
+        self.push_screen(ConfigModal(self.session.cfg, cfg_path), callback=self._on_config_saved)
+
+    def _on_config_saved(self, new_cfg: dict | None) -> None:
+        if not new_cfg:
+            return
+        self.session.update_config(new_cfg)
+        self.sub_title = "%s · %s" % (self.session.provider, self.session.model)
+        log = self.query_one("#log", ChatLog)
+        log.write(
+            "[bold green][config][/] Configuration updated! Provider: [bold]%s[/], Model: [bold]%s[/]"
+            % (self.session.provider, self.session.model)
+        )
 
     def _on_agent_event(self, kind, text):
         self.call_from_thread(self._write_event, kind, text)
@@ -277,6 +296,9 @@ class ChatApp(App):
             return
         if turn.kind == "empty":
             return
+        if turn.kind == "config":
+            self.action_open_config()
+            return
         if turn.kind == "reply":
             log.write("[bold green]agent[/]")
             log.write(Markdown(turn.text or "(no reply)"))
@@ -291,7 +313,7 @@ class ChatApp(App):
         composer = self.query_one("#composer", Composer)
         composer.disabled = busy
         composer.placeholder = (
-            "working…" if busy else "Message  ·  /help  /reset  /skills  /tools  /quit"
+            "working…" if busy else "Message  ·  /help  /config  /reset  /skills  /tools  /quit"
         )
         if not busy:
             composer.focus()

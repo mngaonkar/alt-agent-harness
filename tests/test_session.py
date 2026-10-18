@@ -90,3 +90,33 @@ def test_reset_clears_history(tmp_path):
     assert session.agent.history
     session.submit("/reset")
     assert session.agent.history == []
+
+
+def test_slash_config(tmp_path):
+    session = _session(tmp_path, [])
+    turn = session.submit("/config")
+    assert turn.kind == "config"
+    turn_settings = session.submit("/settings")
+    assert turn_settings.kind == "config"
+
+
+def test_session_update_config(tmp_path):
+    session = _session(tmp_path, [])
+    assert session.provider == "xai"
+    assert session.model == "grok-4.6"
+    assert session.agent.registry.tavily.enabled is False
+
+    session.update_config({
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "api_key": "sk-test",
+        "tavily_api_key": "tvly-key",
+    })
+    assert session.provider == "openai"
+    assert session.model == "gpt-4o-mini"
+    assert session.agent.client.model == "gpt-4o-mini"
+    assert session.agent.registry.tavily.enabled is True
+    # Verify tavily_search tool is now present
+    tools_catalog = session.tools_catalog()
+    assert "tavily_search" in tools_catalog
+

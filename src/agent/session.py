@@ -9,14 +9,14 @@ import time
 from dataclasses import dataclass
 
 
-HELP = "Commands: /reset  /skills  /tools  /info  /help  /quit"
+HELP = "Commands: /reset  /skills  /tools  /info  /config  /help  /quit"
 
 
 @dataclass(frozen=True)
 class Turn:
     """Result of one user submission."""
 
-    kind: str  # reply | status | help | quit | empty
+    kind: str  # reply | status | help | quit | empty | config
     text: str = ""
     elapsed_s: float | None = None
 
@@ -51,6 +51,18 @@ class Session:
     def reset(self):
         self.agent.reset()
 
+    def update_config(self, new_cfg):
+        """Hot-reload session configuration, LLM client, and tools."""
+        self.cfg.update(new_cfg)
+        from agent import llm, search
+        self.agent.cfg = self.cfg
+        self.agent.client = llm.Client(self.cfg)
+        self.agent.registry.cfg = self.cfg
+        self.agent.registry.tavily = search.TavilyClient(self.cfg)
+        self.agent.registry._schemas.clear()
+        self.agent.registry._handlers.clear()
+        self.agent.registry._register_all()
+
     def skills_catalog(self):
         self.agent.skills.discover()
         return self.agent.skills.catalog()
@@ -80,6 +92,8 @@ class Session:
             return Turn("status", self.tools_catalog())
         if text == "/info":
             return Turn("status", self.info())
+        if text in ("/config", "/settings"):
+            return Turn("config", "Open configuration.")
         if text in ("/help", "/?"):
             return Turn("help", HELP)
         start = time.time()

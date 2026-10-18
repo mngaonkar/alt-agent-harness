@@ -53,6 +53,36 @@ uv run alt-agent-harness --workspace /path/to/other/checkout
 `--workspace` is the project root (skills, config, `/tmp`). It defaults to the
 current directory when that looks like a harness checkout.
 
+### Configuration TUI
+
+Run the visual Configuration TUI to select providers, enter API keys, pick models, and test connections:
+
+```bash
+uv run alt-agent-harness --config
+```
+
+You can also press `Ctrl+O` or type `/config` inside the running chat TUI at any time to open settings and hot-reload your active session without restarting.
+
+Supported Providers:
+* **xAI (XAPI / Grok)**: `XAI_API_KEY`, models like `grok-4.6`, `grok-2-latest`
+* **OpenRouter**: `OPENROUTER_API_KEY`, access models from Anthropic, Meta, Google, DeepSeek, etc.
+* **OpenAI**: `OPENAI_API_KEY`, models like `gpt-4o`, `gpt-4o-mini`, `o3-mini`, `o1`
+* **Custom Endpoint**: Any OpenAI-compatible local or remote endpoint (e.g. Ollama `http://localhost:11434/v1`, vLLM, LM Studio)
+* **Tavily Search**: `TAVILY_API_KEY` for web search tool capabilities
+
+### macOS App
+
+You can build and install a native macOS application bundle (`Alt Agent Harness.app`) into `/Applications`:
+
+```bash
+./scripts/build_macos_app.sh
+```
+
+Once installed:
+- Open it from **Spotlight** (`Cmd + Space`, type `Alt Agent Harness`), **Launchpad**, or **Finder** (`/Applications`).
+- Pin it to your macOS **Dock**.
+- It runs the exact same interactive Textual TUI, connected to your workspace configuration and skills.
+
 ### Commands
 
 These are **user** slash commands, handled by `Session` before the model sees
@@ -60,6 +90,7 @@ the line. They are not model tools.
 
 | Command | What it does |
 |---|---|
+| `/config` | Open the interactive Configuration TUI (`Ctrl+O`) |
 | `/reset` | Clear conversation history |
 | `/skills` | List installed skills (name + description) |
 | `/tools` | List native tools the model can call |
@@ -67,7 +98,7 @@ the line. They are not model tools.
 | `/help` | Show this list (`/?` also works) |
 | `/quit` | Exit (`/exit` also works) |
 
-TUI keys: `Ctrl+C` / `Ctrl+D` quit, `Ctrl+L` clear the log.
+TUI keys: `Ctrl+C` / `Ctrl+D` quit, `Ctrl+O` config, `Ctrl+L` clear the log.
 
 `/skills` is a catalog dump for you. `load_skill` is the **model** tool that
 pulls a skill's full instructions into the current turn.

@@ -55,6 +55,11 @@ def main(argv=None):
         help="Workspace root (default: cwd, or this checkout).",
     )
     parser.add_argument(
+        "--config",
+        action="store_true",
+        help="Open interactive configuration TUI.",
+    )
+    parser.add_argument(
         "--repl",
         action="store_true",
         help="Plain stdin REPL instead of the TUI.",
@@ -68,8 +73,30 @@ def main(argv=None):
     args = parser.parse_args(argv)
     interface = "repl" if args.repl else args.interface
 
+    if args.config:
+        from agent import config
+        from interfaces.config_tui import run_config_tui
+
+        cfg_path = config.default_path(args.workspace)
+        cfg = config.load(cfg_path)
+        run_config_tui(cfg, cfg_path, workspace=args.workspace)
+        return
+
     if args.command or interface == "repl":
         print(BANNER)
+
+    # If first-time setup is needed and using TUI, open Config TUI
+    if interface == "tui" and not args.command:
+        from agent import config
+        from interfaces.config_tui import run_config_tui
+
+        cfg_path = config.default_path(args.workspace)
+        cfg = config.load(cfg_path)
+        if setup.needed(cfg):
+            res = run_config_tui(cfg, cfg_path, workspace=args.workspace)
+            if not res or setup.needed(res):
+                print("\n[boot] setup cancelled or incomplete")
+                sys.exit(0)
 
     try:
         session = boot(args.workspace)

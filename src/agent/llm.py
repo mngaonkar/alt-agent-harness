@@ -45,8 +45,9 @@ class Client:
                 "HTTP-Referer": "https://openrouter.ai",
                 "X-Title": "alt-agent-harness",
             }
+        client_key = self.api_key or ("dummy" if self.provider == "custom" else "none")
         self._client = OpenAI(
-            api_key=self.api_key,
+            api_key=client_key,
             base_url=self.base_url,
             timeout=self.timeout,
             default_headers=headers,

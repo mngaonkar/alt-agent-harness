@@ -4,6 +4,7 @@ from agent.config import OPENROUTER_MODEL, OPENROUTER_URL, load, load_dotenv, sa
 def _clear_keys(monkeypatch):
     monkeypatch.delenv("XAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 
 def test_load_defaults_and_file_override(tmp_path, monkeypatch):
@@ -111,3 +112,29 @@ def test_dotenv_does_not_override_shell_env(tmp_path, monkeypatch):
 
 def test_load_dotenv_missing_file(tmp_path):
     assert load_dotenv(tmp_path) is None
+
+
+def test_openai_env_switches_provider(tmp_path, monkeypatch):
+    _clear_keys(monkeypatch)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-test")
+    cfg = load(tmp_path / "missing.json")
+    assert cfg["provider"] == "openai"
+    assert cfg["api_key"] == "sk-proj-test"
+    assert cfg["base_url"] == "https://api.openai.com/v1"
+    assert cfg["model"] == "gpt-4o"
+
+
+def test_custom_endpoint_config(tmp_path, monkeypatch):
+    _clear_keys(monkeypatch)
+    path = tmp_path / "config.json"
+    save({
+        "provider": "custom",
+        "base_url": "http://localhost:11434/v1",
+        "model": "mistral",
+        "api_key": "",
+    }, path)
+    cfg = load(path)
+    assert cfg["provider"] == "custom"
+    assert cfg["base_url"] == "http://localhost:11434/v1"
+    assert cfg["model"] == "mistral"
+
