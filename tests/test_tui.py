@@ -7,11 +7,19 @@ from textual.color import Color
 from textual.strip import Strip
 
 from agent.session import Session
-from interfaces.tui import ChatApp, ChatLog, Composer, _border_t, _recolor_strip_cells
+from interfaces.tui import ChatApp, ChatLog, Composer, SlashSuggester, _border_t, _recolor_strip_cells
+
+
+class _DummySkills:
+    skills = {"sysinfo": object(), "coinbase-cli": object()}
+
+    def discover(self):
+        return self.skills
 
 
 class _DummyAgent:
     on_event = None
+    skills = _DummySkills()
 
     def reset(self):
         pass
@@ -116,3 +124,141 @@ def test_core_harness_does_not_import_interfaces():
         if "import interfaces" in text or "from interfaces" in text:
             offenders.append(str(path.relative_to(root.parent)))
     assert not offenders, offenders
+
+
+def test_chat_log_mouse_selection_copies_text(monkeypatch):
+    monkeypatch.setattr("interfaces.tui.shutil.which", lambda _name: None)
+    app = ChatApp(_session())
+
+    async def _run():
+        async with app.run_test(size=(80, 24)) as pilot:
+            log = app.query_one("#log", ChatLog)
+            log.clear()
+            log.write("hello world")
+            log.write("second line")
+            await pilot.pause()
+            # Content starts inside the border (1) + left padding (1).
+            await pilot.mouse_down(log, offset=(2, 1))
+            await pilot.hover(log, offset=(6, 1))
+            await pilot.mouse_up(log, offset=(6, 1))
+            await pilot.pause()
+            assert app.screen.get_selected_text() == "hello"
+            # Copied on select, so Cmd+V works without a copy key.
+            assert app._clipboard == "hello"
+            app._clipboard = ""
+            await pilot.press("ctrl+c")
+            assert app._clipboard == "hello"
+            assert app.is_running
+
+    asyncio.run(_run())
+
+
+def test_copy_last_reply(monkeypatch):
+    monkeypatch.setattr("interfaces.tui.shutil.which", lambda _name: None)
+    app = ChatApp(_session())
+
+    async def _run():
+        async with app.run_test() as pilot:
+            from agent.session import Turn
+
+            app._write_turn(Turn("reply", "the **answer**"))
+            await pilot.press("ctrl+y")
+            assert app._clipboard == "the **answer**"
+
+    asyncio.run(_run())
+
+
+def test_slash_suggester_matches_commands_and_skills():
+    suggester = SlashSuggester(_session())
+    assert suggester.matches("hello") == []
+    assert suggester.matches("/sysinfo now") == []
+    assert "/coinbase-cli" in suggester.matches("/")
+    assert suggester.matches("/SY") == ["/sysinfo"]
+    assert suggester.matches("/co") == ["/config", "/coinbase-cli"]
+
+
+def test_tab_completes_slash_skill():
+    app = ChatApp(_session())
+
+    async def _run():
+        async with app.run_test() as pilot:
+            await pilot.press("/", "s", "y")
+            await pilot.pause()
+            hint = app.query_one("#completions")
+            assert hint.display
+            assert "/sysinfo" in str(hint.render())
+            await pilot.press("tab")
+            composer = app.query_one("#composer", Composer)
+            assert composer.value == "/sysinfo "
+            assert composer.has_focus
+            await pilot.pause()
+            assert not hint.display
+
+    asyncio.run(_run())
+
+
+def test_up_down_walks_prompt_history():
+    app = ChatApp(_session())
+
+    async def _run():
+        async with app.run_test() as pilot:
+            composer = app.query_one("#composer", Composer)
+            for text in ("first", "second", "second"):
+                composer.remember(text)
+            assert composer.history == ["first", "second"]
+            composer.value = "draft"
+            await pilot.press("up")
+            assert composer.value == "second"
+            await pilot.press("up")
+            assert composer.value == "first"
+            await pilot.press("up")
+            assert composer.value == "first"
+            await pilot.press("down", "down")
+            assert composer.value == "draft"
+            assert composer.cursor_position == len("draft")
+            await pilot.press("down")
+            assert composer.value == "draft"
+
+    asyncio.run(_run())
+
+
+def test_selection_highlight_overrides_segment_colors():
+    from textual.selection import Selection
+
+    app = ChatApp(_session())
+
+    async def _run():
+        async with app.run_test() as pilot:
+            log = app.query_one("#log", ChatLog)
+            log.clear()
+            log.write("[dim green on #222222]hello world[/]")
+            app.screen.selections = {log: Selection(None, None)}
+            await pilot.pause()
+            expected = log._selection_style()
+            styles = [
+                style
+                for text, style, _ in log._render_line(0, 0, 20)
+                if text.strip()
+            ]
+            assert styles
+            for style in styles:
+                assert style.bgcolor == expected.bgcolor
+                assert style.color == expected.color
+                assert not style.dim
+
+    asyncio.run(_run())
+
+
+def test_bracketed_paste_keeps_all_lines():
+    from textual import events
+
+    app = ChatApp(_session())
+
+    async def _run():
+        async with app.run_test() as pilot:
+            composer = app.query_one("#composer", Composer)
+            composer.post_message(events.Paste("line one\nline two"))
+            await pilot.pause()
+            assert composer.value == "line one line two"
+
+    asyncio.run(_run())
