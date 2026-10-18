@@ -4,6 +4,9 @@ Talks only to Session. Agent work runs on a worker thread so the input
 stays responsive while a turn is in flight.
 """
 
+import shutil
+import subprocess
+import sys
 from functools import lru_cache
 
 from rich.cells import cell_len
@@ -11,14 +14,16 @@ from rich.markup import escape
 from rich.markdown import Markdown
 from rich.segment import Segment
 from rich.style import Style as RichStyle
-from textual import on, work
+from textual import events, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.color import Color, ColorParseError, Gradient
 from textual.geometry import Region
+from textual.selection import Selection
 from textual.strip import Strip
+from textual.suggester import Suggester
 from textual.widget import Widget
-from textual.widgets import Footer, Header, Input, RichLog
+from textual.widgets import Footer, Header, Input, RichLog, Static
 
 from agent.session import HELP, Session, Turn
 
@@ -201,11 +206,137 @@ class _GradientBorder:
 
 
 class ChatLog(_GradientBorder, RichLog):
-    """Transcript log with a gradient border."""
+    """Transcript log with a gradient border and mouse text selection."""
+
+    ALLOW_SELECT = True
+
+    def get_selection(self, selection: Selection) -> tuple[str, str] | None:
+        text = "\n".join(strip.text.rstrip() for strip in self.lines)
+        return selection.extract(text), "\n"
+
+    def selection_updated(self, selection: Selection | None) -> None:
+        self._line_cache.clear()
+        self.refresh()
+
+    def _selection_style(self) -> RichStyle:
+        """Solid accent background with contrasting text, readable on any segment."""
+        try:
+            bg = Color.parse(self.app.current_theme.primary)
+        except (AttributeError, ColorParseError):
+            bg = Color.parse("#0178D4")
+        fg = bg.get_contrast_text(1.0)
+        return RichStyle(color=fg.rich_color, bgcolor=bg.rich_color, dim=False, italic=False)
+
+    def _render_line(self, y: int, scroll_x: int, width: int) -> Strip:
+        if y >= len(self.lines):
+            return Strip.blank(width, self.rich_style)
+        selection = self.text_selection
+        line = self.lines[y]
+        if selection is not None and (span := selection.get_span(y)) is not None:
+            start, end = span
+            if end == -1:
+                end = line.cell_length
+            selected = line.crop(start, end)
+            # post_style so the highlight wins over each segment's own colors/dim.
+            selected = Strip(
+                Segment.apply_style(selected, post_style=self._selection_style()),
+                selected.cell_length,
+            )
+            line = Strip.join([line.crop(0, start), selected, line.crop(end, line.cell_length)])
+        return line.crop_extend(scroll_x, scroll_x + width, self.rich_style).apply_offsets(
+            scroll_x, y
+        )
+
+
+def _system_clipboard() -> str:
+    if sys.platform != "darwin" or not shutil.which("pbpaste"):
+        return ""
+    result = subprocess.run(["pbpaste"], capture_output=True, check=False)
+    return result.stdout.decode("utf-8", errors="replace")
+
+
+class SlashSuggester(Suggester):
+    """Completes /commands and /<skill> names; the list is reloaded on each new "/"."""
+
+    def __init__(self, session: Session):
+        super().__init__(use_cache=False, case_sensitive=False)
+        self.session = session
+        self._commands: list[str] = []
+
+    def matches(self, value: str) -> list[str]:
+        if not value.startswith("/") or " " in value:
+            return []
+        if value == "/" or not self._commands:
+            self._commands = self.session.slash_commands()
+        prefix = value.casefold()
+        return [c for c in self._commands if c.casefold().startswith(prefix)]
+
+    async def get_suggestion(self, value: str) -> str | None:
+        found = self.matches(value)
+        return found[0] if found else None
 
 
 class Composer(_GradientBorder, Input):
-    """Prompt input with a gradient border."""
+    """Prompt input with a gradient border.
+
+    Tab accepts a /command completion; Up/Down walk the prompt history.
+    """
+
+    BINDINGS = [
+        Binding("tab", "accept_suggestion", "Complete", show=False),
+        Binding("super+v", "paste", "Paste", show=False),
+        Binding("up", "history(-1)", "Previous prompt", show=False),
+        Binding("down", "history(1)", "Next prompt", show=False),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.history: list[str] = []
+        self._history_index = 0
+        self._draft = ""
+
+    def remember(self, text: str) -> None:
+        if text and (not self.history or self.history[-1] != text):
+            self.history.append(text)
+        self._history_index = len(self.history)
+        self._draft = ""
+
+    def _insert_pasted(self, text: str) -> None:
+        # Single-line input: keep every pasted line instead of only the first.
+        start, end = self.selection
+        self.replace(" ".join(text.splitlines()), start, end)
+
+    def _on_paste(self, event: events.Paste) -> None:
+        # Cmd+V arrives from the terminal as a bracketed paste.
+        if event.text:
+            self._insert_pasted(event.text)
+        event.prevent_default()
+        event.stop()
+
+    def action_paste(self) -> None:
+        # Input's default pastes only Textual's internal clipboard; read the system one.
+        text = _system_clipboard() or self.app.clipboard
+        if text:
+            self._insert_pasted(text)
+
+    def action_history(self, step: int) -> None:
+        index = self._history_index + step
+        if not 0 <= index <= len(self.history):
+            return
+        if self._history_index == len(self.history):
+            self._draft = self.value
+        self._history_index = index
+        self.value = self.history[index] if index < len(self.history) else self._draft
+        self.cursor_position = len(self.value)
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "accept_suggestion":
+            return bool(self._suggestion) and self._suggestion != self.value
+        return super().check_action(action, parameters)
+
+    def action_accept_suggestion(self) -> None:
+        self.value = self._suggestion + " "
+        self.cursor_position = len(self.value)
 
 
 class ChatApp(App):
@@ -227,9 +358,17 @@ class ChatApp(App):
     #composer:focus {
         border: round $accent;
     }
+    #completions {
+        height: auto;
+        padding: 0 2;
+        color: $text-muted;
+        display: none;
+    }
     """
     BINDINGS = [
-        Binding("ctrl+c", "quit", "Quit", show=True, priority=True),
+        Binding("ctrl+c", "copy_or_quit", "Copy/Quit", show=True, priority=True),
+        Binding("super+c", "copy_selection", "Copy", show=False, priority=True),
+        Binding("ctrl+y", "copy_last_reply", "Copy reply", show=True),
         Binding("ctrl+d", "quit", "Quit", show=False, priority=True),
         Binding("ctrl+o", "open_config", "Config", show=True),
         Binding("ctrl+l", "clear_log", "Clear", show=True),
@@ -239,14 +378,17 @@ class ChatApp(App):
         super().__init__()
         self.session = session
         self._busy = False
+        self._last_reply = ""
 
     def compose(self) -> ComposeResult:
         self.sub_title = "%s · %s" % (self.session.provider, self.session.model)
         yield Header(show_clock=True)
         yield ChatLog(id="log", wrap=True, markup=True, highlight=False)
+        yield Static(id="completions")
         yield Composer(
             placeholder="Message  ·  /help  /config  /reset  /skills  /tools  /quit",
             id="composer",
+            suggester=SlashSuggester(self.session),
         )
         yield Footer()
 
@@ -256,6 +398,49 @@ class ChatApp(App):
         log.write("[dim]workspace[/] %s" % self.session.workspace)
         log.write("[dim]%s[/]" % HELP)
         self.query_one("#composer", Composer).focus()
+
+    def copy_to_clipboard(self, text: str) -> None:
+        # OSC 52 (Textual's default) is ignored by macOS Terminal.app; use pbcopy too.
+        super().copy_to_clipboard(text)
+        if sys.platform == "darwin" and shutil.which("pbcopy"):
+            subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=False)
+
+    def _selected_text(self) -> str:
+        text = self.screen.get_selected_text()
+        focused = self.focused
+        if not text and isinstance(focused, Input):
+            text = focused.selected_text
+        return text or ""
+
+    def on_text_selected(self, event: events.TextSelected) -> None:
+        # Copy on select: iTerm2/Terminal.app keep Cmd+C for themselves, so the
+        # app never sees it. After a drag, Cmd+V anywhere pastes the selection.
+        text = self.screen.get_selected_text()
+        if text:
+            self.copy_to_clipboard(text)
+            self.notify("Copied to clipboard", timeout=1.5)
+
+    def action_copy_selection(self) -> None:
+        text = self._selected_text()
+        if text:
+            self.copy_to_clipboard(text)
+            self.notify("Copied to clipboard", timeout=1.5)
+
+    def action_copy_or_quit(self) -> None:
+        text = self._selected_text()
+        if text:
+            self.copy_to_clipboard(text)
+            self.screen.clear_selection()
+            self.notify("Copied to clipboard")
+        else:
+            self.exit()
+
+    def action_copy_last_reply(self) -> None:
+        if not self._last_reply:
+            self.notify("No reply to copy yet", severity="warning")
+            return
+        self.copy_to_clipboard(self._last_reply)
+        self.notify("Copied last reply")
 
     def action_clear_log(self) -> None:
         self.query_one("#log", ChatLog).clear()
@@ -300,6 +485,7 @@ class ChatApp(App):
             self.action_open_config()
             return
         if turn.kind == "reply":
+            self._last_reply = turn.text or ""
             log.write("[bold green]agent[/]")
             log.write(Markdown(turn.text or "(no reply)"))
             if turn.elapsed_s is not None:
@@ -318,12 +504,27 @@ class ChatApp(App):
         if not busy:
             composer.focus()
 
+    @on(Input.Changed, "#composer")
+    def on_composer_changed(self, event: Input.Changed) -> None:
+        suggester = event.input.suggester
+        found = suggester.matches(event.value) if isinstance(suggester, SlashSuggester) else []
+        hint = self.query_one("#completions", Static)
+        hint.display = bool(found)
+        if found:
+            first, rest = found[0], found[1:9]
+            more = "  …+%d" % (len(found) - 9) if len(found) > 9 else ""
+            hint.update(
+                "[bold]%s[/]  %s%s  [dim](tab)[/]"
+                % (escape(first), "  ".join(escape(c) for c in rest), more)
+            )
+
     @on(Input.Submitted, "#composer")
     def on_composer_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
         event.input.value = ""
         if not text or self._busy:
             return
+        self.query_one("#composer", Composer).remember(text)
         self._set_busy(True)
         self._write_user(text)
         self._run_turn(text)

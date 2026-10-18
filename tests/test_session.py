@@ -120,3 +120,24 @@ def test_session_update_config(tmp_path):
     tools_catalog = session.tools_catalog()
     assert "tavily_search" in tools_catalog
 
+
+
+def test_slash_command_list_includes_skills(tmp_path):
+    session = _session(tmp_path, [])
+    commands = session.slash_commands()
+    assert commands[0] == "/help"
+    assert "/sysinfo" in commands
+
+
+def test_slash_skill_asks_agent_to_use_it(tmp_path):
+    session = _session(tmp_path, [])
+    asked = []
+    session.ask = lambda text: asked.append(text) or "ok"
+    assert session.submit("/sysinfo check disk").kind == "reply"
+    assert session.submit("/sysinfo").kind == "reply"
+    session.submit("/nope hi")
+    assert asked == [
+        "Use the sysinfo skill. check disk",
+        "Use the sysinfo skill. Run it.",
+        "/nope hi",
+    ]

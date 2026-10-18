@@ -9,7 +9,9 @@ import time
 from dataclasses import dataclass
 
 
-HELP = "Commands: /reset  /skills  /tools  /info  /config  /help  /quit"
+HELP = "Commands: /reset  /skills  /tools  /info  /config  /help  /quit  ·  /<skill> [request]"
+
+COMMANDS = ["/help", "/config", "/reset", "/skills", "/tools", "/info", "/quit"]
 
 
 @dataclass(frozen=True)
@@ -67,6 +69,12 @@ class Session:
         self.agent.skills.discover()
         return self.agent.skills.catalog()
 
+    def slash_commands(self):
+        """Built-in commands followed by one /<name> entry per installed skill."""
+        self.agent.skills.discover()
+        skills = ["/" + name for name in sorted(self.agent.skills.skills)]
+        return COMMANDS + [c for c in skills if c not in COMMANDS]
+
     def tools_catalog(self):
         return self.agent.registry.catalog()
 
@@ -96,6 +104,10 @@ class Session:
             return Turn("config", "Open configuration.")
         if text in ("/help", "/?"):
             return Turn("help", HELP)
+        if text.startswith("/"):
+            name, _, request = text[1:].partition(" ")
+            if self.agent.skills.get(name):
+                text = "Use the %s skill. %s" % (name, request.strip() or "Run it.")
         start = time.time()
         reply = self.ask(text)
         return Turn("reply", reply, elapsed_s=time.time() - start)
