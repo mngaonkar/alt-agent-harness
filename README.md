@@ -72,16 +72,32 @@ Supported Providers:
 
 ### macOS App
 
-You can build and install a native macOS application bundle (`Alt Agent Harness.app`) into `/Applications`:
+You can build and install a standalone macOS application bundle (`Alt Agent Harness.app`) into `/Applications`:
 
 ```bash
-./scripts/build_macos_app.sh
+./scripts/build_macos_app.sh               # build + install
+./scripts/build_macos_app.sh --no-install  # build into dist/ only
 ```
+
+The app bundles its own Python, the harness and its dependencies, so the Mac
+running it needs nothing else installed (building it needs uv). It is built for
+the build machine's CPU. Config, `.env` and skills live in
+`~/Library/Application Support/Alt Agent Harness`; set `ALT_AGENT_WORKSPACE`
+to point it at a checkout instead.
 
 Once installed:
 - Open it from **Spotlight** (`Cmd + Space`, type `Alt Agent Harness`), **Launchpad**, or **Finder** (`/Applications`).
 - Pin it to your macOS **Dock**.
 - It runs the exact same interactive Textual TUI, connected to your workspace configuration and skills.
+
+**Prebuilt app.** Each `v*` tag runs the `macOS app` workflow, which attaches
+`Alt-Agent-Harness-<version>-macOS-arm64.zip` (Apple Silicon) to the GitHub
+release. The app is ad-hoc signed, not notarized, so clear the quarantine flag
+after unzipping:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Alt Agent Harness.app"
+```
 
 ### Commands
 
