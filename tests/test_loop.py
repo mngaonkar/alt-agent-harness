@@ -47,8 +47,42 @@ def test_plain_reply_no_tools(tmp_path):
     agent = _agent(tmp_path, [
         {"role": "assistant", "content": "hello"},
     ])
+    agent.cfg["model"] = "test-model"
+    events = []
+    agent.on_event = lambda kind, text: events.append((kind, text))
     assert agent.ask("hi") == "hello"
     assert agent.history[-1]["content"] == "hello"
+    llm_events = [text for kind, text in events if kind == "llm"]
+    assert len(llm_events) == 2
+    assert "request #1" in llm_events[0]
+    assert "model=test-model" in llm_events[0]
+    assert "response #1" in llm_events[1]
+    assert "content_chars=5" in llm_events[1]
+
+
+def test_llm_debug_events_report_tool_calls(tmp_path):
+    agent = _agent(tmp_path, [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "list_skills", "arguments": "{}"},
+            }],
+        },
+        {"role": "assistant", "content": "done"},
+    ])
+    events = []
+    agent.on_event = lambda kind, text: events.append((kind, text))
+
+    assert agent.ask("list skills") == "done"
+    responses = [
+        text for kind, text in events
+        if kind == "llm" and text.startswith("response")
+    ]
+    assert "tools=list_skills" in responses[0]
+    assert "tools=none" in responses[1]
 
 
 def test_tool_round_then_answer(tmp_path):

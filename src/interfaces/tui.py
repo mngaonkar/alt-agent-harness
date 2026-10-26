@@ -7,6 +7,7 @@ stays responsive while a turn is in flight.
 import shutil
 import subprocess
 import sys
+from datetime import datetime
 from functools import lru_cache
 
 from rich.cells import cell_len
@@ -18,6 +19,7 @@ from textual import events, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.color import Color, ColorParseError, Gradient
+from textual.containers import Horizontal, Vertical
 from textual.geometry import Region
 from textual.selection import Selection
 from textual.strip import Strip
@@ -364,12 +366,33 @@ class ChatApp(App):
         color: $text-muted;
         display: none;
     }
+    #content {
+        height: 1fr;
+    }
+    #debug-pane {
+        width: 36;
+        min-width: 24;
+        height: 1fr;
+        border: round $accent;
+        display: none;
+    }
+    #debug-title {
+        height: 1;
+        padding: 0 1;
+        text-style: bold;
+    }
+    #debug-log {
+        height: 1fr;
+        padding: 0 1;
+        scrollbar-gutter: stable;
+    }
     """
     BINDINGS = [
         Binding("ctrl+c", "copy_or_quit", "Copy/Quit", show=True, priority=True),
         Binding("super+c", "copy_selection", "Copy", show=False, priority=True),
         Binding("ctrl+y", "copy_last_reply", "Copy reply", show=True),
-        Binding("ctrl+d", "quit", "Quit", show=False, priority=True),
+        Binding("ctrl+d", "toggle_debug", "Debug log", show=True, priority=True),
+        Binding("ctrl+q", "quit", "Quit", show=True, priority=True),
         Binding("ctrl+o", "open_config", "Config", show=True),
         Binding("ctrl+l", "clear_log", "Clear", show=True),
     ]
@@ -383,7 +406,11 @@ class ChatApp(App):
     def compose(self) -> ComposeResult:
         self.sub_title = "%s · %s" % (self.session.provider, self.session.model)
         yield Header(show_clock=True)
-        yield ChatLog(id="log", wrap=True, markup=True, highlight=False)
+        with Horizontal(id="content"):
+            yield ChatLog(id="log", wrap=True, markup=True, highlight=False)
+            with Vertical(id="debug-pane"):
+                yield Static("DEBUG EVENTS · Ctrl+D to hide", id="debug-title")
+                yield RichLog(id="debug-log", wrap=True, markup=True, highlight=False)
         yield Static(id="completions")
         yield Composer(
             placeholder="Message  ·  /help  /config  /reset  /skills  /tools  /quit",
@@ -445,6 +472,10 @@ class ChatApp(App):
     def action_clear_log(self) -> None:
         self.query_one("#log", ChatLog).clear()
 
+    def action_toggle_debug(self) -> None:
+        pane = self.query_one("#debug-pane")
+        pane.display = not pane.display
+
     def action_open_config(self) -> None:
         from agent import config
         from interfaces.config_tui import ConfigModal
@@ -467,6 +498,11 @@ class ChatApp(App):
         self.call_from_thread(self._write_event, kind, text)
 
     def _write_event(self, kind, text):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.query_one("#debug-log", RichLog).write(
+            "[dim]%s[/] [bold yellow]%s[/] %s"
+            % (timestamp, escape(str(kind).upper()), escape(str(text)))
+        )
         self.query_one("#log", ChatLog).write(
             "[yellow]%s[/] %s" % (escape("[%s]" % kind), escape(text))
         )

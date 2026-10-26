@@ -100,8 +100,20 @@ class Agent:
         max_iters = self.cfg.get("max_tool_iterations", 50)
         empty_retries = 0
         for _round_i in range(max_iters):
+            tool_schemas = self.registry.schemas()
+            call_number = _round_i + 1
+            self._emit(
+                "llm",
+                "request #%d model=%s messages=%d tools=%d"
+                % (
+                    call_number,
+                    self.cfg.get("model", "unknown"),
+                    len(messages),
+                    len(tool_schemas),
+                ),
+            )
             try:
-                raw = self.client.chat(messages, tools=self.registry.schemas())
+                raw = self.client.chat(messages, tools=tool_schemas)
             except LLMError as exc:
                 err = "LLM error: %s" % exc
                 self._emit("error", err)
@@ -112,6 +124,19 @@ class Agent:
             tool_calls = message.get("tool_calls") or []
             content = message.get("content") or ""
             has_text = bool(content.strip()) if isinstance(content, str) else bool(content)
+            tool_names = [
+                (call.get("function") or {}).get("name", "?") for call in tool_calls
+            ]
+            self._emit(
+                "llm",
+                "response #%d finish=%s tools=%s content_chars=%d"
+                % (
+                    call_number,
+                    finish_reason or "?",
+                    ",".join(tool_names) if tool_names else "none",
+                    len(content) if isinstance(content, str) else 0,
+                ),
+            )
 
             if not tool_calls and not has_text:
                 if finish_reason == "length":
