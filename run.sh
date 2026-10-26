@@ -2,6 +2,7 @@
 # Launch alt-agent-harness from the repo root. Extra args are passed through:
 #   ./run.sh
 #   ./run.sh --repl
+#   ./run.sh --serve
 #   ./run.sh -c "how's this machine doing?"
 set -euo pipefail
 

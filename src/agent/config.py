@@ -80,7 +80,7 @@ _DEFAULTS = {
     "tavily_api_key": "",
     "tavily_max_results": 5,
     "tavily_search_depth": "basic",
-    "request_timeout": 120,
+    "request_timeout": 300,
     "skills_dir": "/skills",
     "max_tool_iterations": 50,
     "history_limit": 40,

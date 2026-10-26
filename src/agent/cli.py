@@ -65,13 +65,20 @@ def main(argv=None):
         help="Plain stdin REPL instead of the TUI.",
     )
     parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="Run the SHAP HTTP server (same as --interface http).",
+    )
+    parser.add_argument(
         "--interface",
-        choices=("tui", "repl"),
+        choices=("tui", "repl", "http"),
         default="tui",
-        help="Chat front-end (default: tui).",
+        help="Front-end: tui (default), repl, or http (SHAP server).",
     )
     args = parser.parse_args(argv)
     interface = "repl" if args.repl else args.interface
+    if args.serve:
+        interface = "http"
 
     if args.config:
         from agent import config
@@ -114,6 +121,11 @@ def main(argv=None):
             run_repl(session)
         except SystemExit:
             print("[boot] bye")
+        return
+
+    if interface == "http":
+        from interfaces.http_agent import run as run_http
+        run_http(session)
         return
 
     from interfaces.tui import run as run_tui
