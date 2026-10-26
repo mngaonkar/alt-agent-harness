@@ -60,6 +60,37 @@ def test_chat_app_composes():
             assert str(log.lines)
             assert isinstance(log, ChatLog)
             assert isinstance(composer, Composer)
+            assert not app.query_one("#debug-pane").display
+
+    asyncio.run(_run())
+
+
+def test_ctrl_d_toggles_debug_panel_and_records_agent_events():
+    app = ChatApp(_session())
+
+    async def _run():
+        async with app.run_test() as pilot:
+            pane = app.query_one("#debug-pane")
+            debug_log = app.query_one("#debug-log")
+            assert not pane.display
+
+            await pilot.press("ctrl+d")
+            assert pane.display
+
+            app._write_event("tool", "read_file /README.md")
+            await pilot.pause()
+            assert "TOOL" in "\n".join(strip.text for strip in debug_log.lines)
+            assert "read_file /README.md" in "\n".join(
+                strip.text for strip in debug_log.lines
+            )
+
+            await pilot.press("ctrl+d")
+            assert not pane.display
+            app._write_event("error", "request failed")
+            await pilot.pause()
+            assert "request failed" in "\n".join(
+                strip.text for strip in debug_log.lines
+            )
 
     asyncio.run(_run())
 

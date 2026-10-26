@@ -114,7 +114,12 @@ the line. They are not model tools.
 | `/help` | Show this list (`/?` also works) |
 | `/quit` | Exit (`/exit` also works) |
 
-TUI keys: `Ctrl+C` / `Ctrl+D` quit, `Ctrl+O` config, `Ctrl+L` clear the log.
+TUI keys: `Ctrl+C` quits (or copies a selection), `Ctrl+Q` quits, `Ctrl+D`
+toggles the right-side agent debug-event log, `Ctrl+O` opens config, and
+`Ctrl+L` clears the conversation log. The debug pane shows tool calls, errors,
+status/retry events, and each LLM request/response summary (model, message and
+tool counts, finish reason, requested tool names, and response length) as they
+occur. Prompt contents and credentials are not included.
 
 `/skills` is a catalog dump for you. `load_skill` is the **model** tool that
 pulls a skill's full instructions into the current turn.
