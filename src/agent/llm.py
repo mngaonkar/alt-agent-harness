@@ -110,7 +110,8 @@ class Client:
 
     def chat(self, messages, tools=None):
         """One completion round. Returns the assistant message dict."""
-        if not self.api_key:
+        # Custom endpoints (Ollama, vLLM, ...) often need no key.
+        if not self.api_key and self.provider != "custom":
             raise LLMError(
                 "no api_key configured; set XAI_API_KEY, OPENROUTER_API_KEY, "
                 "or api_key in config.json"

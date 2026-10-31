@@ -1,3 +1,7 @@
 {
-    "python.defaultInterpreterPath": "/Users/mahadevgaonkar/code/alt-agent-harness/.venv/bin/python"
+    "python.defaultInterpreterPath": "/Users/mahadevgaonkar/code/alt-agent-harness/.venv/bin/python",
+    "chat.tools.terminal.autoApprove": {
+        "pytest": true,
+        "uv": true
+    }
 }

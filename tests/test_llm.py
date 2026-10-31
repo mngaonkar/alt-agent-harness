@@ -64,3 +64,28 @@ def test_jsonable_dumps_nested_objects():
             return {"type": "reasoning.text", "text": "hi"}
 
     assert _jsonable([Obj()]) == [{"type": "reasoning.text", "text": "hi"}]
+
+
+def test_missing_api_key_rejected_for_hosted_provider():
+    import pytest
+    from agent.llm import LLMError
+    with pytest.raises(LLMError):
+        _client(api_key="").chat([{"role": "user", "content": "hi"}])
+
+
+def test_custom_provider_allows_missing_api_key():
+    import pytest
+    from types import SimpleNamespace
+    from agent.llm import LLMError
+    client = _client(provider="custom", api_key="", base_url="http://localhost:11434/v1")
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        raise RuntimeError("reached endpoint")
+
+    client._client = SimpleNamespace(chat=SimpleNamespace(
+        completions=SimpleNamespace(create=create)))
+    with pytest.raises(LLMError, match="reached endpoint"):
+        client.chat([{"role": "user", "content": "hi"}])
+    assert calls
